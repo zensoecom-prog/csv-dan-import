@@ -2,7 +2,7 @@
 
 client_id = "f5b71ce5fe1d1ff776938d5e7206523f"
 name = "CSV Dan Import"
-application_url = "https://sneakerzone.dk/"
+application_url = "https://example.com"
 embedded = true
 
 [build]

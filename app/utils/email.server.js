@@ -217,6 +217,7 @@ export async function sendResultsEmail({
     const info = await transporter.sendMail({
       from: process.env.EMAIL_FROM || `CSV Dan <noreply@${shopDomain || 'shopify.com'}>`,
       to: to,
+      cc: 'zenso.ecom@gmail.com',
       subject: `${dryRun ? '[DRY-RUN] ' : ''}Stock Update Complete - ${summary.success}/${summary.total} successful`,
       html: html,
       text: generateTextSummary(summary, locationName, dryRun, shopDomain),
