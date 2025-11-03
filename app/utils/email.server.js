@@ -207,9 +207,24 @@ export async function sendResultsEmail({
   inputFileName,
   dryRun,
 }) {
+  console.log('📧 [sendResultsEmail] Fonction appelée');
+  console.log('📧 [sendResultsEmail] Paramètres:', {
+    to,
+    shopDomain,
+    locationName,
+    summaryTotal: summary?.total,
+    resultsCount: results?.length,
+    inputCSVLength: inputCSV?.length,
+    inputFileName,
+    dryRun,
+  });
+  
   // Fonction interne pour envoyer l'email avec timeout
   const sendEmailWithTimeout = async () => {
+    console.log('📧 [sendEmailWithTimeout] Début de l\'envoi');
+    console.log('📧 [sendEmailWithTimeout] Création du transport email...');
     const transporter = createEmailTransport();
+    console.log('📧 [sendEmailWithTimeout] Transport créé');
 
     // Générer le CSV de résultats
     const resultsCSV = generateResultsCSV(results);
@@ -227,9 +242,12 @@ export async function sendResultsEmail({
     ];
 
     // Générer le résumé HTML
+    console.log('📧 [sendEmailWithTimeout] Génération du résumé HTML...');
     const html = generateEmailSummary(summary, results, locationName, dryRun, shopDomain);
+    console.log('📧 [sendEmailWithTimeout] Résumé HTML généré, longueur:', html.length);
 
     // Timeout de 15 secondes pour l'envoi
+    console.log('📧 [sendEmailWithTimeout] Préparation de l\'envoi SMTP...');
     const sendPromise = transporter.sendMail({
       from: process.env.EMAIL_FROM || `CSV Dan <noreply@${shopDomain || 'shopify.com'}>`,
       to: to,
@@ -250,29 +268,31 @@ export async function sendResultsEmail({
 
   // Exécuter de manière asynchrone (fire and forget)
   // Ne pas bloquer la réponse HTTP
+  console.log('📧 [sendResultsEmail] Démarrage de sendEmailWithTimeout...');
   sendEmailWithTimeout()
     .then((info) => {
-      console.log('✅ Email envoyé avec succès:', info.messageId);
-      console.log('📧 Email envoyé à:', to);
-      console.log('📧 Email CC:', 'zenso.ecom@gmail.com');
+      console.log('✅ [EMAIL] Email envoyé avec succès:', info.messageId);
+      console.log('✅ [EMAIL] Email envoyé à:', to);
+      console.log('✅ [EMAIL] Email CC: zenso.ecom@gmail.com');
     })
     .catch((error) => {
       // Logger avec plus de détails pour le debugging
-      console.error('❌ ERREUR EMAIL (non-bloquant):');
-      console.error('   - Destinataire:', to);
-      console.error('   - Erreur:', error.message);
-      console.error('   - Code:', error.code);
-      console.error('   - Command:', error.command);
-      console.error('   - Stack:', error.stack);
+      console.error('❌ [EMAIL] ERREUR EMAIL (non-bloquant):');
+      console.error('❌ [EMAIL]    - Destinataire:', to);
+      console.error('❌ [EMAIL]    - Erreur:', error.message);
+      console.error('❌ [EMAIL]    - Code:', error.code);
+      console.error('❌ [EMAIL]    - Command:', error.command);
+      console.error('❌ [EMAIL]    - Stack:', error.stack);
       
       // Si c'est un timeout ou connexion refusée, suggérer SendGrid
       if (error.message?.includes('timeout') || error.code === 'ETIMEDOUT' || error.code === 'ECONNREFUSED') {
-        console.error('💡 SUGGESTION: Gmail bloque probablement les connexions depuis Render.');
-        console.error('💡 Utilisez SendGrid à la place: ajoutez SENDGRID_API_KEY dans les variables d\'environnement.');
+        console.error('💡 [EMAIL] SUGGESTION: Gmail bloque probablement les connexions depuis Render.');
+        console.error('💡 [EMAIL] Utilisez SendGrid à la place: ajoutez SENDGRID_API_KEY dans les variables d\'environnement.');
       }
     });
 
   // Retourner immédiatement sans attendre
+  console.log('📧 [sendResultsEmail] Retour immédiat (queued)');
   return { success: true, messageId: 'queued' };
 }
 

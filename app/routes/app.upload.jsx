@@ -360,17 +360,32 @@ export const action = async ({ request }) => {
     };
 
     // Envoyer l'email si demandé (asynchrone, ne bloque PAS - fire and forget)
+    console.log('📧 Email demandé ?', sendEmail);
     if (sendEmail) {
+      console.log('📧 Démarrage de l\'envoi d\'email en arrière-plan...');
       // Ne PAS utiliser await - exécuter en arrière-plan
-      (async () => {
+      // Utiliser setImmediate pour garantir l'exécution après le return
+      setImmediate(async () => {
         try {
+          console.log('📧 [EMAIL] Début de la fonction asynchrone');
           // Récupérer l'email du propriétaire
+          console.log('📧 [EMAIL] Récupération de l\'email du propriétaire...');
           const ownerEmail = await getShopOwnerEmail(admin);
+          console.log('📧 [EMAIL] Email propriétaire récupéré:', ownerEmail || 'null');
           const recipientEmail = ownerEmail || (session?.shop ? session.shop.replace('.myshopify.com', '') + '@shopify.com' : null);
+          console.log('📧 [EMAIL] Destinataire final:', recipientEmail || 'null');
 
           if (recipientEmail) {
-            console.log('📧 Initiation envoi email en arrière-plan...');
-            console.log('📧 Destinataire:', recipientEmail);
+            console.log('📧 [EMAIL] Initiation envoi email en arrière-plan...');
+            console.log('📧 [EMAIL] Destinataire:', recipientEmail);
+            console.log('📧 [EMAIL] Shop Domain:', session?.shop || 'Unknown');
+            console.log('📧 [EMAIL] Location Name:', locationName);
+            console.log('📧 [EMAIL] Summary:', JSON.stringify(summary));
+            console.log('📧 [EMAIL] Résultats:', results.length, 'lignes');
+            console.log('📧 [EMAIL] CSV input:', originalCSV.length, 'caractères');
+            console.log('📧 [EMAIL] File name:', inputFileName);
+            console.log('📧 [EMAIL] Dry run:', dryRun);
+            
             // L'envoi se fait en arrière-plan, ne bloque pas la réponse HTTP
             sendResultsEmail({
               to: recipientEmail,
@@ -382,15 +397,22 @@ export const action = async ({ request }) => {
               inputFileName: inputFileName,
               dryRun: dryRun,
             }).catch((emailError) => {
-              console.error('❌ Erreur lors de l\'initiation de l\'envoi email (background):', emailError);
+              console.error('❌ [EMAIL] Erreur lors de l\'initiation de l\'envoi email (background):', emailError);
+              console.error('❌ [EMAIL] Stack:', emailError.stack);
             });
           } else {
-            console.warn('⚠️ Impossible de déterminer le destinataire email');
+            console.warn('⚠️ [EMAIL] Impossible de déterminer le destinataire email');
+            console.warn('⚠️ [EMAIL] ownerEmail:', ownerEmail);
+            console.warn('⚠️ [EMAIL] session?.shop:', session?.shop);
           }
         } catch (emailError) {
-          console.error('Error initiating email send (background):', emailError);
+          console.error('❌ [EMAIL] Error initiating email send (background):', emailError);
+          console.error('❌ [EMAIL] Stack:', emailError.stack);
         }
-      })(); // IIFE - Immediate Invoked Function Expression
+      }); // setImmediate pour exécution après return
+      console.log('📧 [EMAIL] Fonction asynchrone planifiée, continuons...');
+    } else {
+      console.log('📧 [EMAIL] Email non demandé (sendEmail = false)');
     }
 
     return {
