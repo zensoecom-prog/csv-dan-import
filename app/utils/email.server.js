@@ -5,9 +5,16 @@ import nodemailer from 'nodemailer';
  * Utilise les variables d'environnement pour la configuration
  */
 function createEmailTransport() {
+  // Log toutes les variables email disponibles pour debug
+  console.log('📧 [createEmailTransport] Variables email disponibles:');
+  console.log('📧 [createEmailTransport] - SENDGRID_API_KEY:', process.env.SENDGRID_API_KEY ? 'OUI (masqué)' : 'NON');
+  console.log('📧 [createEmailTransport] - SMTP_HOST:', process.env.SMTP_HOST ? 'OUI' : 'NON');
+  console.log('📧 [createEmailTransport] - GMAIL_USER:', process.env.GMAIL_USER ? 'OUI (masqué)' : 'NON');
+  console.log('📧 [createEmailTransport] - GMAIL_APP_PASSWORD:', process.env.GMAIL_APP_PASSWORD ? 'OUI (masqué)' : 'NON');
+  
   // Support pour SendGrid (PRIORITÉ - plus fiable depuis Render)
   if (process.env.SENDGRID_API_KEY) {
-    console.log('📧 [createEmailTransport] Utilisation de SendGrid (prioritaire)');
+    console.log('📧 [createEmailTransport] ✅ Utilisation de SendGrid (prioritaire)');
     console.log('📧 [createEmailTransport] SENDGRID_API_KEY présent:', process.env.SENDGRID_API_KEY ? 'Oui (masqué)' : 'Non');
     return nodemailer.createTransport({
       host: 'smtp.sendgrid.net',
@@ -24,7 +31,7 @@ function createEmailTransport() {
 
   // Support pour SMTP standard
   if (process.env.SMTP_HOST) {
-    console.log('📧 [createEmailTransport] Utilisation de SMTP standard');
+    console.log('📧 [createEmailTransport] ⚠️ Utilisation de SMTP standard (SendGrid non disponible)');
     return nodemailer.createTransport({
       host: process.env.SMTP_HOST,
       port: parseInt(process.env.SMTP_PORT || '587'),
@@ -41,7 +48,7 @@ function createEmailTransport() {
 
   // Support pour Gmail (OAuth2 ou app password) - Dernier recours
   if (process.env.GMAIL_USER && process.env.GMAIL_APP_PASSWORD) {
-    console.log('📧 [createEmailTransport] Utilisation de Gmail (peut être bloqué depuis Render)');
+    console.log('📧 [createEmailTransport] ⚠️ Utilisation de Gmail (SendGrid non disponible - peut être bloqué depuis Render)');
     return nodemailer.createTransport({
       service: 'gmail',
       auth: {
@@ -58,6 +65,7 @@ function createEmailTransport() {
   }
 
   // Mode développement : console.log seulement
+  console.log('📧 [createEmailTransport] ⚠️ Mode développement - aucun transport email configuré');
   return {
     sendMail: async (options) => {
       console.log('📧 EMAIL (dev mode):', {
@@ -269,12 +277,12 @@ export async function sendResultsEmail({
     
     console.log('📧 [sendEmailWithTimeout] Promesse sendMail créée, en attente...');
 
-    // Timeout après 15 secondes
+    // Timeout après 30 secondes (SendGrid peut prendre plus de temps)
     const timeoutPromise = new Promise((_, reject) => {
       setTimeout(() => {
-        console.error('⏱️ [sendEmailWithTimeout] TIMEOUT après 15 secondes');
-        reject(new Error('Email send timeout after 15s'));
-      }, 15000);
+        console.error('⏱️ [sendEmailWithTimeout] TIMEOUT après 30 secondes');
+        reject(new Error('Email send timeout after 30s'));
+      }, 30000);
     });
 
     console.log('📧 [sendEmailWithTimeout] Lancement de Promise.race...');
