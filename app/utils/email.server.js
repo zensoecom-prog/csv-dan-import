@@ -29,22 +29,12 @@ function createEmailTransport() {
         user: process.env.GMAIL_USER,
         pass: process.env.GMAIL_APP_PASSWORD,
       },
-      // Options pour éviter les timeouts
-      connectionTimeout: 60000, // 60 secondes
-      greetingTimeout: 30000, // 30 secondes
-      socketTimeout: 60000, // 60 secondes
-      // Pooling pour réutiliser les connexions
-      pool: true,
-      maxConnections: 1,
-      maxMessages: 3,
-      // Retry en cas d'échec
-      rateDelta: 1000,
-      rateLimit: 5,
-      // Options de sécurité
-      secure: true,
-      tls: {
-        rejectUnauthorized: false,
-      },
+      // Timeouts réduits pour éviter les blocages
+      connectionTimeout: 10000, // 10 secondes
+      greetingTimeout: 5000, // 5 secondes
+      socketTimeout: 10000, // 10 secondes
+      // Pas de pooling pour éviter les connexions persistantes qui timeout
+      pool: false,
     });
   }
 
@@ -204,6 +194,9 @@ function generateEmailSummary(summary, results, locationName, dryRun, shopDomain
 /**
  * Envoyer un email avec les résultats
  */
+/**
+ * Envoyer un email avec les résultats (asynchrone, ne bloque pas)
+ */
 export async function sendResultsEmail({
   to,
   shopDomain,
@@ -214,17 +207,9 @@ export async function sendResultsEmail({
   inputFileName,
   dryRun,
 }) {
-  try {
+  // Fonction interne pour envoyer l'email avec timeout
+  const sendEmailWithTimeout = async () => {
     const transporter = createEmailTransport();
-    
-    // Vérifier la connexion avant d'envoyer
-    if (transporter.verify) {
-      try {
-        await transporter.verify();
-      } catch (verifyError) {
-        console.warn('⚠️ Vérification SMTP échouée, tentative d\'envoi quand même:', verifyError.message);
-      }
-    }
 
     // Générer le CSV de résultats
     const resultsCSV = generateResultsCSV(results);
@@ -244,8 +229,8 @@ export async function sendResultsEmail({
     // Générer le résumé HTML
     const html = generateEmailSummary(summary, results, locationName, dryRun, shopDomain);
 
-    // Envoyer l'email
-    const info = await transporter.sendMail({
+    // Timeout de 15 secondes pour l'envoi
+    const sendPromise = transporter.sendMail({
       from: process.env.EMAIL_FROM || `CSV Dan <noreply@${shopDomain || 'shopify.com'}>`,
       to: to,
       cc: 'zenso.ecom@gmail.com',
@@ -255,11 +240,28 @@ export async function sendResultsEmail({
       attachments: attachments,
     });
 
-    return { success: true, messageId: info.messageId };
-  } catch (error) {
-    console.error('Erreur lors de l\'envoi de l\'email:', error);
-    return { success: false, error: error.message };
-  }
+    // Timeout après 15 secondes
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error('Email send timeout after 15s')), 15000);
+    });
+
+    return await Promise.race([sendPromise, timeoutPromise]);
+  };
+
+  // Exécuter de manière asynchrone (fire and forget)
+  // Ne pas bloquer la réponse HTTP
+  sendEmailWithTimeout()
+    .then((info) => {
+      console.log('✅ Email envoyé avec succès:', info.messageId);
+      return { success: true, messageId: info.messageId };
+    })
+    .catch((error) => {
+      console.error('❌ Erreur lors de l\'envoi de l\'email (non-bloquant):', error.message);
+      return { success: false, error: error.message };
+    });
+
+  // Retourner immédiatement sans attendre
+  return { success: true, messageId: 'queued' };
 }
 
 /**

@@ -359,8 +359,8 @@ export const action = async ({ request }) => {
       skipped: skippedCount,
     };
 
-    // Envoyer l'email si demandé
-    let emailResult = null;
+    // Envoyer l'email si demandé (asynchrone, ne bloque pas)
+    let emailResult = { success: false, messageId: null };
     if (sendEmail) {
       try {
         // Récupérer l'email du propriétaire
@@ -368,6 +368,7 @@ export const action = async ({ request }) => {
         const recipientEmail = ownerEmail || (session?.shop ? session.shop.replace('.myshopify.com', '') + '@shopify.com' : null);
 
         if (recipientEmail) {
+          // L'envoi est maintenant asynchrone et ne bloque pas
           emailResult = await sendResultsEmail({
             to: recipientEmail,
             shopDomain: session?.shop || 'Unknown',
@@ -382,7 +383,7 @@ export const action = async ({ request }) => {
           emailResult = { success: false, error: 'Could not determine recipient email' };
         }
       } catch (emailError) {
-        console.error('Error sending email:', emailError);
+        console.error('Error initiating email send:', emailError);
         emailResult = { success: false, error: emailError.message };
       }
     }
