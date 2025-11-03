@@ -1,6 +1,5 @@
 import { execSync } from 'child_process';
-import { writeFileSync, unlinkSync } from 'fs';
-import { join } from 'path';
+import { PrismaClient } from '@prisma/client';
 
 /**
  * Script pour s'assurer que les migrations Prisma sont appliquées
@@ -53,9 +52,9 @@ async function ensureMigrations() {
           // Dernier recours : essayer de créer la table manuellement si elle n'existe pas
           console.log('🔨 Tentative de création manuelle de la table...');
           try {
-            // Créer un fichier SQL temporaire
-            const sqlFile = join(process.cwd(), 'temp_create_session.sql');
-            writeFileSync(sqlFile, `CREATE TABLE IF NOT EXISTS "Session" (
+            const prisma = new PrismaClient();
+            // Créer la table directement avec SQL brut
+            await prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "Session" (
     "id" TEXT NOT NULL PRIMARY KEY,
     "shop" TEXT NOT NULL,
     "state" TEXT NOT NULL,
@@ -72,15 +71,7 @@ async function ensureMigrations() {
     "collaborator" BOOLEAN DEFAULT false,
     "emailVerified" BOOLEAN DEFAULT false
 );`);
-            
-            // Exécuter le SQL
-            execSync(`npx prisma db execute --file ${sqlFile}`, {
-              stdio: 'inherit',
-              env: process.env
-            });
-            
-            // Supprimer le fichier temporaire
-            unlinkSync(sqlFile);
+            await prisma.$disconnect();
             
             console.log('✅ Table créée manuellement');
             // Marquer la migration comme appliquée
