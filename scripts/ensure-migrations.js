@@ -28,32 +28,36 @@ async function ensureMigrations() {
     } catch (migrateError) {
       console.error('⚠️ Erreur lors de migrate deploy:', migrateError.message);
       
-      // Si erreur P3009, la migration a échoué - il faut la résoudre comme rolled-back
+      // Si erreur P3009, la migration a échoué
+      // Suivre Option 1 de la doc Prisma: https://www.prisma.io/docs/orm/prisma-migrate/workflows/patching-and-hotfixing#failed-migration
       if (migrateError.message?.includes('P3009') || migrateError.message?.includes('failed migrations')) {
-        console.log('🔧 Détection d\'une migration échouée. Résolution en cours...');
+        console.log('🔧 Détection d\'une migration échouée. Application de la méthode Prisma (Option 1)...');
         try {
-          // Résoudre comme "rolled-back" car la table n'existe probablement pas
-          console.log('📋 Résolution de la migration comme rolled-back...');
+          // Étape 1: Marquer la migration comme rolled-back
+          // Cela permet à Prisma de la réappliquer
+          console.log('📋 Étape 1: Marquage de la migration comme rolled-back...');
           execSync('npx prisma migrate resolve --rolled-back 20240530213853_create_session_table', {
             stdio: 'inherit',
             env: process.env
           });
-          console.log('✅ Migration résolue comme rolled-back');
+          console.log('✅ Migration marquée comme rolled-back');
           
-          // Réessayer migrate deploy
-          console.log('🔄 Nouvelle tentative d\'application des migrations...');
+          // Étape 2: Réappliquer les migrations
+          // La migration utilise maintenant IF NOT EXISTS, donc elle peut être appliquée même si partiellement exécutée
+          console.log('🔄 Étape 2: Nouvelle tentative d\'application des migrations...');
           execSync('npx prisma migrate deploy', {
             stdio: 'inherit',
             env: process.env
           });
-          console.log('✅ Migrations appliquées avec succès après résolution');
+          console.log('✅ Migrations appliquées avec succès après résolution (Option 1 Prisma)');
         } catch (resolveError) {
-          console.error('❌ Impossible de résoudre les migrations:', resolveError.message);
-          // Dernier recours : essayer de créer la table manuellement si elle n'existe pas
-          console.log('🔨 Tentative de création manuelle de la table...');
+          console.error('❌ Impossible de résoudre les migrations avec Option 1:', resolveError.message);
+          console.log('🔨 Passage à Option 2: Complétion manuelle de la migration...');
           try {
+            // Option 2: Compléter manuellement et marquer comme appliquée
+            // Voir: https://www.prisma.io/docs/orm/prisma-migrate/workflows/patching-and-hotfixing#option-2-manually-complete-migration-and-resolve-as-applied
             const prisma = new PrismaClient();
-            // Créer la table directement avec SQL brut
+            // Créer la table si elle n'existe pas (identique à la migration)
             await prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "Session" (
     "id" TEXT NOT NULL PRIMARY KEY,
     "shop" TEXT NOT NULL,
@@ -73,14 +77,15 @@ async function ensureMigrations() {
 );`);
             await prisma.$disconnect();
             
-            console.log('✅ Table créée manuellement');
-            // Marquer la migration comme appliquée
+            console.log('✅ Table créée/complétée manuellement');
+            // Marquer la migration comme appliquée (Option 2 Prisma)
             execSync('npx prisma migrate resolve --applied 20240530213853_create_session_table', {
               stdio: 'inherit',
               env: process.env
             });
+            console.log('✅ Migration marquée comme appliquée (Option 2 Prisma)');
           } catch (manualError) {
-            console.error('❌ Impossible de créer la table manuellement:', manualError.message);
+            console.error('❌ Impossible de compléter la migration manuellement:', manualError.message);
             throw resolveError;
           }
         }

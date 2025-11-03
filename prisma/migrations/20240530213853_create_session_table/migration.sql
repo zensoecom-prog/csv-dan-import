@@ -1,5 +1,7 @@
 -- CreateTable
-CREATE TABLE "Session" (
+-- Utilisation de IF NOT EXISTS selon les recommandations Prisma pour les migrations échouées
+-- Voir: https://www.prisma.io/docs/orm/prisma-migrate/workflows/patching-and-hotfixing#failed-migration
+CREATE TABLE IF NOT EXISTS "Session" (
     "id" TEXT NOT NULL PRIMARY KEY,
     "shop" TEXT NOT NULL,
     "state" TEXT NOT NULL,
