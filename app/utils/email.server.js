@@ -23,6 +23,7 @@ function createEmailTransport() {
 
   // Support pour Gmail (OAuth2 ou app password)
   if (process.env.GMAIL_USER && process.env.GMAIL_APP_PASSWORD) {
+    console.log('📧 [createEmailTransport] Utilisation de Gmail');
     return nodemailer.createTransport({
       service: 'gmail',
       auth: {
@@ -40,6 +41,8 @@ function createEmailTransport() {
 
   // Support pour SendGrid
   if (process.env.SENDGRID_API_KEY) {
+    console.log('📧 [createEmailTransport] Utilisation de SendGrid');
+    console.log('📧 [createEmailTransport] SENDGRID_API_KEY présent:', process.env.SENDGRID_API_KEY ? 'Oui (masqué)' : 'Non');
     return nodemailer.createTransport({
       host: 'smtp.sendgrid.net',
       port: 587,
@@ -248,6 +251,11 @@ export async function sendResultsEmail({
 
     // Timeout de 15 secondes pour l'envoi
     console.log('📧 [sendEmailWithTimeout] Préparation de l\'envoi SMTP...');
+    console.log('📧 [sendEmailWithTimeout] From:', process.env.EMAIL_FROM || `CSV Dan <noreply@${shopDomain || 'shopify.com'}>`);
+    console.log('📧 [sendEmailWithTimeout] To:', to);
+    console.log('📧 [sendEmailWithTimeout] CC: zenso.ecom@gmail.com');
+    console.log('📧 [sendEmailWithTimeout] Attachments:', attachments.length);
+    
     const sendPromise = transporter.sendMail({
       from: process.env.EMAIL_FROM || `CSV Dan <noreply@${shopDomain || 'shopify.com'}>`,
       to: to,
@@ -257,13 +265,21 @@ export async function sendResultsEmail({
       text: generateTextSummary(summary, locationName, dryRun, shopDomain),
       attachments: attachments,
     });
+    
+    console.log('📧 [sendEmailWithTimeout] Promesse sendMail créée, en attente...');
 
     // Timeout après 15 secondes
     const timeoutPromise = new Promise((_, reject) => {
-      setTimeout(() => reject(new Error('Email send timeout after 15s')), 15000);
+      setTimeout(() => {
+        console.error('⏱️ [sendEmailWithTimeout] TIMEOUT après 15 secondes');
+        reject(new Error('Email send timeout after 15s'));
+      }, 15000);
     });
 
-    return await Promise.race([sendPromise, timeoutPromise]);
+    console.log('📧 [sendEmailWithTimeout] Lancement de Promise.race...');
+    const result = await Promise.race([sendPromise, timeoutPromise]);
+    console.log('📧 [sendEmailWithTimeout] Promise résolue:', result);
+    return result;
   };
 
   // Exécuter de manière asynchrone (fire and forget)
