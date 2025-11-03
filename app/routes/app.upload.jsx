@@ -369,6 +369,8 @@ export const action = async ({ request }) => {
           const recipientEmail = ownerEmail || (session?.shop ? session.shop.replace('.myshopify.com', '') + '@shopify.com' : null);
 
           if (recipientEmail) {
+            console.log('📧 Initiation envoi email en arrière-plan...');
+            console.log('📧 Destinataire:', recipientEmail);
             // L'envoi se fait en arrière-plan, ne bloque pas la réponse HTTP
             sendResultsEmail({
               to: recipientEmail,
@@ -380,8 +382,10 @@ export const action = async ({ request }) => {
               inputFileName: inputFileName,
               dryRun: dryRun,
             }).catch((emailError) => {
-              console.error('Error sending email (background):', emailError);
+              console.error('❌ Erreur lors de l\'initiation de l\'envoi email (background):', emailError);
             });
+          } else {
+            console.warn('⚠️ Impossible de déterminer le destinataire email');
           }
         } catch (emailError) {
           console.error('Error initiating email send (background):', emailError);

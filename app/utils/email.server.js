@@ -253,11 +253,23 @@ export async function sendResultsEmail({
   sendEmailWithTimeout()
     .then((info) => {
       console.log('✅ Email envoyé avec succès:', info.messageId);
-      return { success: true, messageId: info.messageId };
+      console.log('📧 Email envoyé à:', to);
+      console.log('📧 Email CC:', 'zenso.ecom@gmail.com');
     })
     .catch((error) => {
-      console.error('❌ Erreur lors de l\'envoi de l\'email (non-bloquant):', error.message);
-      return { success: false, error: error.message };
+      // Logger avec plus de détails pour le debugging
+      console.error('❌ ERREUR EMAIL (non-bloquant):');
+      console.error('   - Destinataire:', to);
+      console.error('   - Erreur:', error.message);
+      console.error('   - Code:', error.code);
+      console.error('   - Command:', error.command);
+      console.error('   - Stack:', error.stack);
+      
+      // Si c'est un timeout ou connexion refusée, suggérer SendGrid
+      if (error.message?.includes('timeout') || error.code === 'ETIMEDOUT' || error.code === 'ECONNREFUSED') {
+        console.error('💡 SUGGESTION: Gmail bloque probablement les connexions depuis Render.');
+        console.error('💡 Utilisez SendGrid à la place: ajoutez SENDGRID_API_KEY dans les variables d\'environnement.');
+      }
     });
 
   // Retourner immédiatement sans attendre
