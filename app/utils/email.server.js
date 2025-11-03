@@ -1,4 +1,5 @@
 import nodemailer from 'nodemailer';
+import sgMail from '@sendgrid/mail';
 
 /**
  * Créer un transport email (SMTP ou autre)
@@ -231,17 +232,62 @@ export async function sendResultsEmail({
     dryRun,
   });
   
-  // Fonction interne pour envoyer l'email avec timeout
+  // Fonction interne pour envoyer l'email
   const sendEmailWithTimeout = async () => {
     console.log('📧 [sendEmailWithTimeout] Début de l\'envoi');
-    console.log('📧 [sendEmailWithTimeout] Création du transport email...');
-    const transporter = createEmailTransport();
-    console.log('📧 [sendEmailWithTimeout] Transport créé');
 
     // Générer le CSV de résultats
     const resultsCSV = generateResultsCSV(results);
 
-    // Préparer les pièces jointes
+    // Générer le résumé HTML
+    console.log('📧 [sendEmailWithTimeout] Génération du résumé HTML...');
+    const html = generateEmailSummary(summary, results, locationName, dryRun, shopDomain);
+    console.log('📧 [sendEmailWithTimeout] Résumé HTML généré, longueur:', html.length);
+
+    const emailFrom = process.env.EMAIL_FROM || `CSV Dan <noreply@${shopDomain || 'shopify.com'}>`;
+    const emailSubject = `${dryRun ? '[DRY-RUN] ' : ''}Stock Update Complete - ${summary.success}/${summary.total} successful`;
+    const emailText = generateTextSummary(summary, locationName, dryRun, shopDomain);
+
+    // Si SendGrid API Key est disponible, utiliser l'API directement (plus fiable)
+    if (process.env.SENDGRID_API_KEY) {
+      console.log('📧 [sendEmailWithTimeout] Utilisation de l\'API SendGrid (directe)');
+      sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+
+      const msg = {
+        to: to,
+        cc: 'zenso.ecom@gmail.com',
+        from: emailFrom,
+        subject: emailSubject,
+        text: emailText,
+        html: html,
+        attachments: [
+          {
+            content: Buffer.from(inputCSV).toString('base64'),
+            filename: inputFileName || 'input.csv',
+            type: 'text/csv',
+            disposition: 'attachment',
+          },
+          {
+            content: Buffer.from(resultsCSV).toString('base64'),
+            filename: `results_${new Date().toISOString().split('T')[0]}.csv`,
+            type: 'text/csv',
+            disposition: 'attachment',
+          },
+        ],
+      };
+
+      console.log('📧 [sendEmailWithTimeout] Envoi via API SendGrid...');
+      const [response] = await sgMail.send(msg);
+      console.log('✅ [sendEmailWithTimeout] SendGrid API réponse:', response.statusCode);
+      return { messageId: response.headers['x-message-id'] || 'sendgrid-' + Date.now() };
+    }
+
+    // Fallback : utiliser SMTP (Gmail ou autre)
+    console.log('📧 [sendEmailWithTimeout] Utilisation de SMTP (fallback)');
+    console.log('📧 [sendEmailWithTimeout] Création du transport email...');
+    const transporter = createEmailTransport();
+    console.log('📧 [sendEmailWithTimeout] Transport créé');
+
     const attachments = [
       {
         filename: inputFileName || 'input.csv',
@@ -253,41 +299,32 @@ export async function sendResultsEmail({
       },
     ];
 
-    // Générer le résumé HTML
-    console.log('📧 [sendEmailWithTimeout] Génération du résumé HTML...');
-    const html = generateEmailSummary(summary, results, locationName, dryRun, shopDomain);
-    console.log('📧 [sendEmailWithTimeout] Résumé HTML généré, longueur:', html.length);
-
-    // Timeout de 15 secondes pour l'envoi
-    console.log('📧 [sendEmailWithTimeout] Préparation de l\'envoi SMTP...');
-    console.log('📧 [sendEmailWithTimeout] From:', process.env.EMAIL_FROM || `CSV Dan <noreply@${shopDomain || 'shopify.com'}>`);
+    console.log('📧 [sendEmailWithTimeout] From:', emailFrom);
     console.log('📧 [sendEmailWithTimeout] To:', to);
     console.log('📧 [sendEmailWithTimeout] CC: zenso.ecom@gmail.com');
     console.log('📧 [sendEmailWithTimeout] Attachments:', attachments.length);
     
+    // Timeout après 20 secondes pour SMTP
     const sendPromise = transporter.sendMail({
-      from: process.env.EMAIL_FROM || `CSV Dan <noreply@${shopDomain || 'shopify.com'}>`,
+      from: emailFrom,
       to: to,
       cc: 'zenso.ecom@gmail.com',
-      subject: `${dryRun ? '[DRY-RUN] ' : ''}Stock Update Complete - ${summary.success}/${summary.total} successful`,
+      subject: emailSubject,
       html: html,
-      text: generateTextSummary(summary, locationName, dryRun, shopDomain),
+      text: emailText,
       attachments: attachments,
     });
     
-    console.log('📧 [sendEmailWithTimeout] Promesse sendMail créée, en attente...');
-
-    // Timeout après 30 secondes (SendGrid peut prendre plus de temps)
     const timeoutPromise = new Promise((_, reject) => {
       setTimeout(() => {
-        console.error('⏱️ [sendEmailWithTimeout] TIMEOUT après 30 secondes');
-        reject(new Error('Email send timeout after 30s'));
-      }, 30000);
+        console.error('⏱️ [sendEmailWithTimeout] TIMEOUT SMTP après 20 secondes');
+        reject(new Error('SMTP email send timeout after 20s'));
+      }, 20000);
     });
 
-    console.log('📧 [sendEmailWithTimeout] Lancement de Promise.race...');
+    console.log('📧 [sendEmailWithTimeout] Lancement SMTP...');
     const result = await Promise.race([sendPromise, timeoutPromise]);
-    console.log('📧 [sendEmailWithTimeout] Promise résolue:', result);
+    console.log('📧 [sendEmailWithTimeout] SMTP résolu:', result);
     return result;
   };
 
