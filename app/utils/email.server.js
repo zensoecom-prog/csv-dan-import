@@ -15,6 +15,9 @@ function createEmailTransport() {
         user: process.env.SMTP_USER,
         pass: process.env.SMTP_PASS,
       },
+      connectionTimeout: 60000,
+      greetingTimeout: 30000,
+      socketTimeout: 60000,
     });
   }
 
@@ -25,6 +28,22 @@ function createEmailTransport() {
       auth: {
         user: process.env.GMAIL_USER,
         pass: process.env.GMAIL_APP_PASSWORD,
+      },
+      // Options pour éviter les timeouts
+      connectionTimeout: 60000, // 60 secondes
+      greetingTimeout: 30000, // 30 secondes
+      socketTimeout: 60000, // 60 secondes
+      // Pooling pour réutiliser les connexions
+      pool: true,
+      maxConnections: 1,
+      maxMessages: 3,
+      // Retry en cas d'échec
+      rateDelta: 1000,
+      rateLimit: 5,
+      // Options de sécurité
+      secure: true,
+      tls: {
+        rejectUnauthorized: false,
       },
     });
   }
@@ -38,6 +57,9 @@ function createEmailTransport() {
         user: 'apikey',
         pass: process.env.SENDGRID_API_KEY,
       },
+      connectionTimeout: 60000,
+      greetingTimeout: 30000,
+      socketTimeout: 60000,
     });
   }
 
@@ -194,6 +216,15 @@ export async function sendResultsEmail({
 }) {
   try {
     const transporter = createEmailTransport();
+    
+    // Vérifier la connexion avant d'envoyer
+    if (transporter.verify) {
+      try {
+        await transporter.verify();
+      } catch (verifyError) {
+        console.warn('⚠️ Vérification SMTP échouée, tentative d\'envoi quand même:', verifyError.message);
+      }
+    }
 
     // Générer le CSV de résultats
     const resultsCSV = generateResultsCSV(results);
