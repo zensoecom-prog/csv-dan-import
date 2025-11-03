@@ -5,8 +5,26 @@ import nodemailer from 'nodemailer';
  * Utilise les variables d'environnement pour la configuration
  */
 function createEmailTransport() {
+  // Support pour SendGrid (PRIORITÉ - plus fiable depuis Render)
+  if (process.env.SENDGRID_API_KEY) {
+    console.log('📧 [createEmailTransport] Utilisation de SendGrid (prioritaire)');
+    console.log('📧 [createEmailTransport] SENDGRID_API_KEY présent:', process.env.SENDGRID_API_KEY ? 'Oui (masqué)' : 'Non');
+    return nodemailer.createTransport({
+      host: 'smtp.sendgrid.net',
+      port: 587,
+      auth: {
+        user: 'apikey',
+        pass: process.env.SENDGRID_API_KEY,
+      },
+      connectionTimeout: 60000,
+      greetingTimeout: 30000,
+      socketTimeout: 60000,
+    });
+  }
+
   // Support pour SMTP standard
   if (process.env.SMTP_HOST) {
+    console.log('📧 [createEmailTransport] Utilisation de SMTP standard');
     return nodemailer.createTransport({
       host: process.env.SMTP_HOST,
       port: parseInt(process.env.SMTP_PORT || '587'),
@@ -21,9 +39,9 @@ function createEmailTransport() {
     });
   }
 
-  // Support pour Gmail (OAuth2 ou app password)
+  // Support pour Gmail (OAuth2 ou app password) - Dernier recours
   if (process.env.GMAIL_USER && process.env.GMAIL_APP_PASSWORD) {
-    console.log('📧 [createEmailTransport] Utilisation de Gmail');
+    console.log('📧 [createEmailTransport] Utilisation de Gmail (peut être bloqué depuis Render)');
     return nodemailer.createTransport({
       service: 'gmail',
       auth: {
@@ -36,23 +54,6 @@ function createEmailTransport() {
       socketTimeout: 10000, // 10 secondes
       // Pas de pooling pour éviter les connexions persistantes qui timeout
       pool: false,
-    });
-  }
-
-  // Support pour SendGrid
-  if (process.env.SENDGRID_API_KEY) {
-    console.log('📧 [createEmailTransport] Utilisation de SendGrid');
-    console.log('📧 [createEmailTransport] SENDGRID_API_KEY présent:', process.env.SENDGRID_API_KEY ? 'Oui (masqué)' : 'Non');
-    return nodemailer.createTransport({
-      host: 'smtp.sendgrid.net',
-      port: 587,
-      auth: {
-        user: 'apikey',
-        pass: process.env.SENDGRID_API_KEY,
-      },
-      connectionTimeout: 60000,
-      greetingTimeout: 30000,
-      socketTimeout: 60000,
     });
   }
 
