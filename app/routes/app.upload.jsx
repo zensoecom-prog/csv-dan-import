@@ -359,41 +359,42 @@ export const action = async ({ request }) => {
       skipped: skippedCount,
     };
 
-    // Envoyer l'email si demandé (asynchrone, ne bloque pas)
-    let emailResult = { success: false, messageId: null };
+    // Envoyer l'email si demandé (asynchrone, ne bloque PAS - fire and forget)
     if (sendEmail) {
-      try {
-        // Récupérer l'email du propriétaire
-        const ownerEmail = await getShopOwnerEmail(admin);
-        const recipientEmail = ownerEmail || (session?.shop ? session.shop.replace('.myshopify.com', '') + '@shopify.com' : null);
+      // Ne PAS utiliser await - exécuter en arrière-plan
+      (async () => {
+        try {
+          // Récupérer l'email du propriétaire
+          const ownerEmail = await getShopOwnerEmail(admin);
+          const recipientEmail = ownerEmail || (session?.shop ? session.shop.replace('.myshopify.com', '') + '@shopify.com' : null);
 
-        if (recipientEmail) {
-          // L'envoi est maintenant asynchrone et ne bloque pas
-          emailResult = await sendResultsEmail({
-            to: recipientEmail,
-            shopDomain: session?.shop || 'Unknown',
-            locationName: locationName,
-            summary: summary,
-            results: results,
-            inputCSV: originalCSV,
-            inputFileName: inputFileName,
-            dryRun: dryRun,
-          });
-        } else {
-          emailResult = { success: false, error: 'Could not determine recipient email' };
+          if (recipientEmail) {
+            // L'envoi se fait en arrière-plan, ne bloque pas la réponse HTTP
+            sendResultsEmail({
+              to: recipientEmail,
+              shopDomain: session?.shop || 'Unknown',
+              locationName: locationName,
+              summary: summary,
+              results: results,
+              inputCSV: originalCSV,
+              inputFileName: inputFileName,
+              dryRun: dryRun,
+            }).catch((emailError) => {
+              console.error('Error sending email (background):', emailError);
+            });
+          }
+        } catch (emailError) {
+          console.error('Error initiating email send (background):', emailError);
         }
-      } catch (emailError) {
-        console.error('Error initiating email send:', emailError);
-        emailResult = { success: false, error: emailError.message };
-      }
+      })(); // IIFE - Immediate Invoked Function Expression
     }
 
     return {
       summary,
       results,
       dryRun,
-      emailSent: emailResult?.success || false,
-      emailError: emailResult?.error,
+      emailSent: sendEmail ? 'queued' : false, // Indique que l'email est en queue
+      emailError: null, // Ne plus afficher d'erreur car on ne sait pas encore si ça a réussi
     };
   } catch (error) {
     console.error('Error processing CSV:', error);
@@ -665,14 +666,9 @@ export default function UploadPage() {
                     </BlockStack>
                   )}
                   
-                  {fetcher.data.emailSent && (
+                  {fetcher.data.emailSent && fetcher.data.emailSent !== false && (
                     <Text as="p" tone="success">
-                      ✓ Email sent successfully with attachments
-                    </Text>
-                  )}
-                  {fetcher.data.emailError && (
-                    <Text as="p" tone="critical">
-                      ⚠ Email error: {fetcher.data.emailError}
+                      ✓ Email queued for sending (check your inbox in a few moments)
                     </Text>
                   )}
                 </BlockStack>
